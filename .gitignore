@@ -1,0 +1,28 @@
+# --- Secrets: NEVER commit ---
+.env
+
+# --- Internal working log (keep local, not on public GitHub) ---
+HANDOFF.md
+
+# --- Generated vector store (rebuildable from PDFs) ---
+chroma_db/
+**/chroma_db/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# --- Experiment / eval artifacts ---
+mlflow_runs/
+mlruns/
+*.pkl
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
