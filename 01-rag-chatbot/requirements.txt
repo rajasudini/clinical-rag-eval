@@ -2,11 +2,13 @@
 # Only what the RAG pipeline needs. Later phases add their own deps.
 
 llama-index-core
-llama-index-llms-openai
-llama-index-embeddings-openai
+llama-index-llms-openai                # LLM for the generate stage (gpt-4o-mini)
+llama-index-embeddings-huggingface     # embeddings: local, private, offline (all-MiniLM-L6-v2)
+sentence-transformers                  # backs the HuggingFace embedding model
+llama-index-embeddings-openai          # kept for a later embed-model comparison (OpenAI vs local)
 llama-index-vector-stores-chroma
-llama-index-readers-file      # PDF loading (pypdf under the hood)
+llama-index-readers-file               # PDF loading (pypdf under the hood)
 chromadb
 openai
 python-dotenv
-beautifulsoup4               # cleaning HTML sources (USPSTF, NIDDK) into text
+beautifulsoup4                         # cleaning HTML sources (USPSTF, NIDDK) into text
