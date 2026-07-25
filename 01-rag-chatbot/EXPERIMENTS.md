@@ -83,6 +83,55 @@ story to document.
 
 ---
 
+## Stage 4 — Vector store (Chroma)
+
+| Setting     | Value                                    |
+|-------------|------------------------------------------|
+| Store       | Chroma, **persistent** (`chroma_db/`)    |
+| Collection  | `clinical_docs`                          |
+| Vectors     | 204 (one per chunk)                      |
+
+**Why persistent + build-or-reuse:** embedding is the expensive step, so we
+index once and persist to disk, then reuse on every later run (detected via
+`collection.count()`). First run embeds all 204 chunks (~3s, local, free);
+later runs attach instantly. `chroma_db/` is gitignored (rebuildable, can be
+large). Note: swapping the embedding model later requires a full re-index —
+384-dim MiniLM vectors and, say, 1,536-dim OpenAI vectors are incompatible.
+
+**Verified (2026-07-24):** first run stored 204 vectors; second run reused them
+with no re-embedding. Store audit confirmed all 5 sources indexed (CDC 30,
+CMS 29, FDA 106, NIDDK 10, USPSTF 29).
+
+## Stage 5 — Retrieval
+
+| Setting            | Value |
+|--------------------|-------|
+| `similarity_top_k` | 4     |
+
+Retrieval is isolated from generation on purpose: retrieval quality and answer
+quality are scored separately, and "did retrieval fetch the right chunk?" is the
+first question in any RAG failure. `top_k=4` is a starting default (tune later).
+
+## Stage 6 — Generation
+
+| Setting       | Value                              |
+|---------------|------------------------------------|
+| LLM           | OpenAI `gpt-4o-mini`               |
+| `temperature` | 0 (deterministic, for eval repro)  |
+| System prompt | grounding + clinical safety guardrail |
+
+**Why temperature 0:** reproducible eval runs — a score change should reflect a
+change *we* made, not sampling randomness. **System prompt** enforces "answer
+only from context, admit ignorance, don't diagnose/prescribe" — this is both a
+guardrail and a future test target for the safety/HIPAA evals.
+
+**Verified (2026-07-24):** first end-to-end answer to the A1C-target question
+was correct AND faithful, grounded in the retrieved CDC ABCs chunk. Cost per
+answer ≈ fractions of a cent. See `findings.md` #001 for the verification story
+(an apparent "hallucination" that full-context checking disproved).
+
+---
+
 ## Open experiments to run (once Phase 2 eval is live)
 
 - **Chunk size:** 256 vs 512 (current) vs 1024 — compare faithfulness/precision.
