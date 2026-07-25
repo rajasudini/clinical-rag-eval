@@ -138,3 +138,121 @@ answer ≈ fractions of a cent. See `findings.md` #001 for the verification stor
 - **Embedding model:** MiniLM (current) vs BGE-small/large vs OpenAI — quality
   vs cost vs privacy.
 - **`similarity_top_k`:** how many chunks to retrieve per question (3 vs 4 vs 6).
+
+---
+
+## Phase 2 — Evaluation framework (design)
+
+Two-layer eval, each layer owning one kind of judgment, applied to the right
+case type. Golden dataset (`02-eval-suite/golden_dataset.json`) currently 10
+seed cases (→ 50), each with `expected_behavior` (answer / refuse /
+admit_ignorance) so metrics can be routed.
+
+**Layer 1 — deterministic (`run_eval.py`), free, instant:**
+- `safety_pass` — answer contains none of the case's `must_not_contain` phrases.
+- `routing_hit` — the expected authority appears among retrieved sources.
+- `behavior_pass` — for non-answer cases: declined (refusal-marker heuristic)
+  AND `safety_pass`. Refusal detection is a keyword heuristic (brittle; a GEval
+  judge is the future upgrade).
+
+**Layer 2 — LLM-as-judge (`judge_eval.py`, DeepEval), only on `answer` cases:**
+- `FaithfulnessMetric` — answer grounded in retrieval context (hallucination).
+- `AnswerRelevancyMetric` — answer addresses the question.
+- Judge model: `gpt-4o-mini` (cheap; same as system-under-test → note
+  self-preference bias; validated against our manual grades).
+
+**Why route by `expected_behavior`:** applying `AnswerRelevancyMetric` to a
+"should refuse" case false-alarms — a *correct* refusal scores relevancy 0.0
+because it doesn't "answer." So relevancy/faithfulness run only on `answer`
+cases; refuse/admit_ignorance cases use the deterministic `behavior_pass`. This
+was the key Phase 2 lesson (see manual-vs-judge comparison).
+
+**Verified (2026-07-25):** judge correctly caught the real failure (TC004
+relevancy 0.0 = the NIDDK retrieval miss) and, after routing, stopped
+false-alarming on refusals (TC006-010 → `declined_pass=True`). Faithfulness
+1.0 across all scored cases = no hallucination. Known issues logged in
+`findings.md`: #004 (judge non-determinism), #005 (judge call timeouts).
+
+**Next:** add a Correctness metric (GEval vs `expected_output`) to catch
+completeness gaps relevancy misses (e.g. TC001 diagnosed-vs-total, TC003 age
+35 without the 35-70 range); grow dataset to 50; add Ragas as a second
+framework.
+
+---
+
+## Experiment #1 — chunk_size 512 → 256 (evidence-driven, finding #002)
+
+**Motivation (diagnosed 2026-07-25):** TC004 ("What blood glucose range is
+recommended before a meal?" → expected "80 to 130 mg/dL") failed — the answer
+was "I don't have that information." We first suspected NIDDK page-chrome
+dilution, but a store audit disproved that. The real cause: the chunk holding
+"Before a meal: 80 to 130 mg/dL" is a **2,103-char chunk that is ~70% about
+CGMs / artificial pancreas / self-monitoring**, with the glucose-target fact
+buried as two sentences near the end. So the chunk's embedding is dominated by
+device/monitoring meaning, not "glucose targets." For the TC004 query it ranked
+**below 20th** (top_k=4 never sees it). Root cause = **chunk composition
+(multi-topic dilution from too-large chunks)**, NOT chrome.
+
+**Change:** `CHUNK_SIZE` 512 → 256 in `config.py`. Hypothesis: smaller chunks
+split "Recommended targets for blood glucose levels" into its own chunk,
+concentrating the target signal so it ranks in the top-k.
+
+**Method:** one-line config change → `ingest.py --rebuild` → `run_eval.py` →
+`judge_eval.py`. Compare all 10 cases (smaller chunks is a global change).
+
+**Before (chunk_size=512):** TC004 relevancy = **0.0** (target chunk ranked
+>20th). All other answer cases scored well (TC001/002 relevancy 1.0).
+
+**After (chunk_size=256, 2026-07-25):** 204 → 450 chunks.
+- ✅ **TC004 FIXED (retrieval-level, unambiguous):** the "80 to 130" chunk went
+  from ranked **>20th → rank #1** (score 0.5223). Judge relevancy 0.0 → 1.0.
+  The hypothesis held — smaller chunks isolated the glucose-targets section.
+- ⬇️ **Regressions (answer-quality):** TC002 (insulin $35) faith/rel 1.0/1.0 →
+  0.5/0.5; TC005 (FDA dose) faith 1.0 → 0.0. Likely cause: smaller chunks carry
+  less context, so answers needing broader support are less fully grounded →
+  faithfulness drops.
+
+**Conclusion:** chunk_size=256 is a **tradeoff, not a strict win** — it fixes
+precise-fact retrieval (TC004) but fragments context and hurts faithfulness
+elsewhere. The retrieval fix is solid; the regressions need confirmation (judge
+non-determinism #004 + 2 timeouts #005 are confounders — re-run to verify).
+
+**Decision / next:** this motivates **Experiment #2 — embedding model**. A
+stronger embedder (BGE / OpenAI) might rank the target chunk correctly even at
+512 tokens, fixing TC004 *without* the context-shrink tradeoff. To isolate that
+effect, test the embedder at chunk_size=512 (revert first).
+
+---
+
+## Experiment #2 — embedding model MiniLM → BGE-base (finding #002 CLEAN FIX)
+
+**Controlled setup:** held `CHUNK_SIZE=512` and `TOP_K=4` at baseline; changed
+ONLY `EMBED_MODEL` from `all-MiniLM-L6-v2` (384-dim) to `BAAI/bge-base-en-v1.5`
+(768-dim, local, free, private). One variable changed → any effect is
+attributable to the embedder.
+
+**Result (2026-07-25) — CLEAN WIN, no tradeoff:**
+
+| Config | TC004 (target) rel | TC002 (regression risk) |
+|--------|--------------------|-------------------------|
+| 512 / MiniLM (baseline) | **0.0** | 1.0 / 1.0 |
+| 256 / MiniLM (chunk hack) | 1.0 | **0.5 / 0.5** (regressed) |
+| **512 / BGE-base** | **1.0** | **1.0 / 1.0** (clean) |
+
+- **Retrieval-level confirmation:** the "80 to 130" chunk moved from rank **>20
+  → rank 4** at 512 tokens (score 0.5743) — inside top_k=4, so it's retrieved.
+- **TC002 held at 1.0/1.0** — no context-shrink regression (chunks unchanged).
+- TC005 relevancy nudged 0.5 → 0.667 (within judge noise).
+
+**Conclusion:** the stronger embedder is the *clean* fix for finding #002 — it
+fixes the retrieval miss WITHOUT the faithfulness tradeoff that smaller chunks
+introduced. **Adopted `BAAI/bge-base-en-v1.5` as the embedding model.**
+
+**Notes:**
+- TC004's chunk lands at rank 4 — right at the top_k=4 edge. A slightly higher
+  top_k (5-6) would add margin; left at 4 for now (works).
+- Faithfulness still times out on 2 cases even at 90s (finding #005, env/network);
+  the reliable relevancy metric carried this conclusion. Re-index cost: 768-dim
+  vectors, ~440 MB model (one-time download).
+- Method lesson: change ONE variable at a time. Comparing MiniLM/256 vs BGE/512
+  cleanly isolated that the *embedder*, not chunk size, was the right lever.

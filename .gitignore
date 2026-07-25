@@ -20,6 +20,7 @@ env/
 mlflow_runs/
 mlruns/
 *.pkl
+02-eval-suite/results/     # timestamped eval output (derived; numbers live in EXPERIMENTS.md)
 
 # --- OS / editor noise ---
 .DS_Store
