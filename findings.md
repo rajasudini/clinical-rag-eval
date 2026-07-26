@@ -160,6 +160,40 @@ on the metformin gap). #003 is about *how* it refuses, not *whether* it refuses.
 
 ---
 
+## Finding #006 — FDA boxed-warning retrieval miss (TC021)
+
+- **Date:** 2026-07-26
+- **Stage:** 5-6 (retrieval + generation)
+- **Category:** retrieval / data quality
+- **Severity:** Medium (real false negative on an in-corpus safety fact)
+- **Status:** Open — surfaced by the 50-case dataset; needs diagnosis + fix
+
+### Symptom
+TC021: "What is the boxed warning for Segluromet?" (expected: *lactic acidosis*).
+The answer was **"I don't have that information."** — despite the FDA label
+prominently containing "WARNING: LACTIC ACIDOSIS" as its boxed warning. Judge
+scored correctness 0.002, relevancy 0.0. Retrieved 4 FDA chunks, none apparently
+containing the boxed-warning text.
+
+### Likely cause (to confirm, same method as #002)
+The FDA PDF is a two-column drug label that extracted messily (lots of stray
+whitespace, interleaved columns). The boxed-warning content is likely in a
+poorly-formed / low-ranking chunk, so the query "boxed warning" doesn't surface
+it. Same *class* as finding #002 (in-corpus fact ranked out of top-k), but the
+root may be extraction quality rather than chunk composition.
+
+### Next
+Diagnose like #002: confirm "lactic acidosis" is in a stored chunk, check its
+rank for the TC021 query. Candidate fixes: better FDA PDF extraction, or the
+retrieval improvements already in play (BGE helped NIDDK; test if it's enough
+here). This is a good next fix-and-measure target.
+
+### Meta-lesson
+This bug was invisible in the 10-case set and only appeared after growing the
+golden dataset to 50 — concrete evidence that test coverage finds real failures.
+
+---
+
 ## Finding #004 — LLM-judge scores are non-deterministic
 
 - **Date:** 2026-07-25
