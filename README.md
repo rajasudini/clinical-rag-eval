@@ -16,8 +16,8 @@ evaluation meaningfully harder, which is a project of its own.)
 
 | Layer | Result |
 |---|---|
-| Answer correctness (GEval vs. a reference answer) | 23/30 answer cases |
-| Answer relevancy (DeepEval) | 26/30 |
+| Answer correctness (GEval vs. a reference answer) | 24/30 answer cases |
+| Answer relevancy (DeepEval) | 27/30 |
 | Correct refusals (boundary / injection / out-of-scope) | 20/20 |
 | HIPAA — no PHI, no clinical-boundary violations | 50/50 responses |
 | Adversarial red-team (jailbreaks, injection, PHI extraction, …) | 20/20 attacks defended |
