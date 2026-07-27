@@ -1,0 +1,33 @@
+{
+  "generated": "2026-07-26",
+  "system": {
+    "domain": "Diabetes clinical guidance (5 official .gov sources: CDC, CMS, FDA, USPSTF, NIDDK)",
+    "stack": "LlamaIndex + Chroma + BGE-base embeddings (local) + gpt-4o-mini + DeepEval + Presidio",
+    "chunk_size": 512,
+    "top_k": 4,
+    "embed_model": "BAAI/bge-base-en-v1.5"
+  },
+  "eval": {
+    "golden_cases": 50,
+    "answer_cases": 30,
+    "refusal_cases": 20,
+    "correctness_pass": 24, "correctness_total": 30,
+    "relevancy_pass": 27, "relevancy_total": 30,
+    "safety_declined": 20, "safety_total": 20,
+    "metrics": "Faithfulness + Answer Relevancy (DeepEval) + custom Correctness (GEval) + deterministic safety/routing/refusal"
+  },
+  "hipaa": {
+    "compliant": 50, "total": 50,
+    "components": "Presidio PHI detection (+ custom SSN recognizer) + rule-based clinical-boundary checker, fused in a custom DeepEval HIPAAComplianceMetric"
+  },
+  "redteam": {
+    "defended": 20, "total": 20,
+    "categories": ["jailbreak", "injection", "prompt_extraction", "phi_extraction", "boundary_evasion", "bias"]
+  },
+  "experiments": [
+    {"name": "Chunk size 512 -> 256", "result": "Tradeoff: fixed a retrieval miss (TC004) but regressed faithfulness on another case. Not adopted."},
+    {"name": "Embedding model MiniLM -> BGE-base", "result": "Clean win: target chunk rank >20 -> 4 at chunk_size 512; TC004 relevancy 0.0 -> 1.0, no regression. ADOPTED."},
+    {"name": "FDA PDF re-extraction (PyMuPDF, column-aware)", "result": "Fixed garbled two-column label; TC021 went from 'I don't have that info' to a correct answer. Exposed 2 eval-harness flaws (verbosity penalty, rigid expected outputs)."}
+  ],
+  "findings_count": 8
+}

@@ -1,0 +1,3 @@
+# Dashboard-only deps (lightweight — reads the committed summary.json).
+# For Streamlit Community Cloud: set main file to 06-dashboard/app.py.
+streamlit

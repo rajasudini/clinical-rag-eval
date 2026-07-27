@@ -26,7 +26,7 @@ from config import (
 
 
 def load_documents():
-    """Stage 1 (load): read every .pdf and .txt in the corpus directory."""
+    """Read every .pdf and .txt in the corpus folder."""
     reader = SimpleDirectoryReader(
         input_dir=str(DOCS_DIR),
         required_exts=[".pdf", ".txt"],
@@ -36,14 +36,18 @@ def load_documents():
 
 
 def chunk_documents(docs):
-    """Stage 2 (chunk): split page-Documents into overlapping passage Nodes."""
+    """Split the loaded docs into smaller overlapping chunks (nodes). Give .txt
+    chunks an explicit page_label so every chunk has a traceable source + page."""
     splitter = SentenceSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
-    return splitter.get_nodes_from_documents(docs)
-
+    nodes = splitter.get_nodes_from_documents(docs)
+    for n in nodes:
+        if n.metadata.get("file_name", "").endswith(".txt"):
+            n.metadata.setdefault("page_label", "n/a")
+    return nodes
 
 def build_index(rebuild=False):
-    """Stages 3-4 (embed + store): load -> chunk -> embed -> store into Chroma.
-    Idempotent: skips if already built, unless rebuild=True wipes and re-indexes."""
+    """Load, chunk, embed, and store everything into Chroma. Skips the work if
+    it's already built, unless rebuild=True wipes it and starts fresh."""
     if rebuild and CHROMA_DIR.exists():
         shutil.rmtree(CHROMA_DIR)
         print(f"[ingest] cleared {CHROMA_DIR.name}/")

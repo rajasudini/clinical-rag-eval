@@ -1,8 +1,7 @@
 """
-Shared configuration for the clinical RAG system: paths, model choices,
-chunking/retrieval params, the safety system prompt, and the global LlamaIndex
-Settings wiring. Imported by BOTH ingest.py (build) and rag_pipeline.py (query),
-so neither depends on the other.
+Shared settings for the RAG system: paths, model choices, chunk/retrieval
+numbers, the safety prompt, and the LlamaIndex setup. Both ingest.py and
+rag_pipeline.py import from here so they don't depend on each other.
 """
 
 import os
@@ -25,8 +24,8 @@ CHUNK_SIZE = 512
 CHUNK_OVERLAP = 50
 
 # --- Models ---
-EMBED_MODEL = "BAAI/bge-base-en-v1.5"   # local, private, free
-LLM_MODEL = "gpt-4o-mini"                                 # OpenAI, for generation
+EMBED_MODEL = "BAAI/bge-base-en-v1.5"   # runs locally, free, data stays on my machine
+LLM_MODEL = "gpt-4o-mini"               # OpenAI, for the actual answer
 
 # --- Retrieval ---
 TOP_K = 4
@@ -43,8 +42,8 @@ SYSTEM_PROMPT = (
 
 
 def configure_settings():
-    """Set the global LlamaIndex config: local embeddings + OpenAI LLM.
-    temperature=0 keeps answers deterministic for reproducible evaluation."""
+    """Wire the models onto LlamaIndex's global Settings. temperature=0 so the
+    same question gives the same answer — the eval runs rely on that."""
     load_dotenv(PROJECT.parent / ".env")
     if not os.getenv("OPENAI_API_KEY"):
         raise SystemExit("ERROR: OPENAI_API_KEY not set. Copy .env.example to .env and fill it in.")

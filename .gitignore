@@ -16,11 +16,13 @@ __pycache__/
 venv/
 env/
 
-# --- Experiment / eval artifacts ---
+# --- Experiment / eval artifacts (derived; numbers live in EXPERIMENTS.md) ---
 mlflow_runs/
 mlruns/
 *.pkl
-02-eval-suite/results/     # timestamped eval output (derived; numbers live in EXPERIMENTS.md)
+02-eval-suite/results/
+04-safety/results/
+.deepeval/
 
 # --- OS / editor noise ---
 .DS_Store

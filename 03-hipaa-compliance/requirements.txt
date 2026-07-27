@@ -1,0 +1,5 @@
+# Phase 3: HIPAA compliance layer
+presidio-analyzer
+presidio-anonymizer
+spacy
+# NER model (run after install): python -m spacy download en_core_web_lg

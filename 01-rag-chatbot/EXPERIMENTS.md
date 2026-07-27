@@ -276,3 +276,33 @@ introduced. **Adopted `BAAI/bge-base-en-v1.5` as the embedding model.**
   vectors, ~440 MB model (one-time download).
 - Method lesson: change ONE variable at a time. Comparing MiniLM/256 vs BGE/512
   cleanly isolated that the *embedder*, not chunk size, was the right lever.
+
+---
+
+## Experiment #3 — FDA PDF re-extraction (finding #006)
+
+**Motivation:** the two-column FDA label extracted as garbled interleaved text
+(pypdf reads straight across columns), degrading the whole FDA source. Added
+`extract_pdf_columns()` to `prepare_sources.py` — PyMuPDF, sort text blocks by
+column (center-x vs page midline) then top-to-bottom. Replaced the FDA PDF with
+clean `.txt`; raw PDF -> `data/raw/`.
+
+**Result — the fix worked; measurement was the limiting factor:**
+
+| FDA case | correct BEFORE | correct AFTER | note |
+|----------|----------------|---------------|------|
+| TC005 max dose | 0.814 | 0.264 | model gave daily total (15/2000) vs per-dose (7.5/1000 twice daily) — framing, our expected too rigid |
+| TC021 boxed warning | 0.002 | 0.400 | SUBSTANTIVELY FIXED ("I don't know" -> correct "lactic acidosis"); low score is verbosity, not error |
+| TC022/023/024 | 0.747/0.593/0.68 | ~flat | ~unchanged |
+| FDA avg | 0.567 | 0.535 | flat/slightly down on the *metric* |
+
+**Two eval-harness flaws exposed (the real value):**
+1. Metrics penalize verbose-but-correct answers (TC021) -> enforce concise
+   answers in the system prompt; re-measure.
+2. Golden `expected_output` too rigid (TC005 daily-total is valid) -> allow
+   alternative framings.
+
+**Conclusion:** the extraction fix is the right thing (clean data > garbled), and
+substantively fixed the target case. The flat metric average is an artifact of
+harness limitations, not the fix. Next: refine the harness (conciseness prompt +
+flexible expected outputs), then re-measure. Keeping the clean FDA `.txt`.
